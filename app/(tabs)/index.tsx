@@ -1,16 +1,16 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
   ScrollView,
-  TextInput,
   Pressable,
-  Image,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { MOCK_CAPTURES, type CaptureItem } from "@/data/mockData";
+import { useItemsStore } from "@/stores/useItemsStore";
+import type { Item } from "@/lib/types";
 
 // Tag badge color mapping
 function getTagStyle(tag: string): { bg: string; text: string } {
@@ -61,10 +61,29 @@ function PlaceholderImage({
   );
 }
 
+/** Format a Date to a relative timestamp string */
+function formatTimestamp(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin} min ago`;
+
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+
+  return date.toLocaleDateString();
+}
+
 // Masonry Card Component
-function CaptureCard({ item, isWide }: { item: CaptureItem; isWide?: boolean }) {
+function CaptureCard({ item, isWide }: { item: Item; isWide?: boolean }) {
   const router = useRouter();
-  const tagStyle = getTagStyle(item.tags[0]);
+  const tag = item.tags[0];
+  const tagStyle = tag ? getTagStyle(tag) : null;
   const isTextOnly = item.type === "note";
 
   return (
@@ -76,23 +95,25 @@ function CaptureCard({ item, isWide }: { item: CaptureItem; isWide?: boolean }) 
       }}
       className="bg-nexus-surface rounded-2xl overflow-hidden mb-3"
     >
-      {!isTextOnly && item.imageUrl && (
-        <PlaceholderImage type={item.imageUrl} large={isWide} />
+      {!isTextOnly && item.imagePlaceholder && (
+        <PlaceholderImage type={item.imagePlaceholder} large={isWide} />
       )}
       <View className="p-3">
         {/* Tag */}
-        <View className="flex-row mb-2">
-          <View className={`px-2.5 py-1 rounded-full ${tagStyle.bg}`}>
-            <Text className={`text-[10px] font-bold ${tagStyle.text}`}>
-              {item.tags[0]}
-            </Text>
+        {tagStyle && tag && (
+          <View className="flex-row mb-2">
+            <View className={`px-2.5 py-1 rounded-full ${tagStyle.bg}`}>
+              <Text className={`text-[10px] font-bold ${tagStyle.text}`}>
+                {tag}
+              </Text>
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Source/Author info */}
-        {item.source && (
+        {item.sourceLabel && (
           <Text className="text-nexus-text-muted text-xs mb-1">
-            {item.source}
+            {item.sourceLabel}
           </Text>
         )}
         {item.author && (
@@ -113,16 +134,16 @@ function CaptureCard({ item, isWide }: { item: CaptureItem; isWide?: boolean }) 
         )}
 
         {/* Timestamp */}
-        {item.timestamp && (
+        {item.type !== "note" && (
           <Text className="text-nexus-text-muted text-[11px] mt-1.5">
-            {item.type !== "note" ? item.timestamp : ""}
+            {formatTimestamp(item.createdAt)}
           </Text>
         )}
         {item.type === "note" && (
           <View className="flex-row items-center mt-2">
             <FontAwesome name="clock-o" size={11} color="#6E6E73" />
             <Text className="text-nexus-text-muted text-[11px] ml-1">
-              {item.timestamp}
+              {formatTimestamp(item.createdAt)}
             </Text>
           </View>
         )}
@@ -133,10 +154,21 @@ function CaptureCard({ item, isWide }: { item: CaptureItem; isWide?: boolean }) 
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { items, isLoading, isInitialized, loadItems } = useItemsStore();
+
+  // Load items from database on mount
+  useEffect(() => {
+    if (!isInitialized) {
+      loadItems();
+    }
+  }, [isInitialized, loadItems]);
+
+  // Filter out audio items for the feed (they show in a different section)
+  const feedItems = items.filter((i) => i.type !== "audio");
 
   // Split items for masonry layout (2 columns)
-  const leftColumn = MOCK_CAPTURES.filter((_, i) => i % 2 === 0);
-  const rightColumn = MOCK_CAPTURES.filter((_, i) => i % 2 !== 0);
+  const leftColumn = feedItems.filter((_, i) => i % 2 === 0);
+  const rightColumn = feedItems.filter((_, i) => i % 2 !== 0);
 
   return (
     <SafeAreaView className="flex-1 bg-nexus-bg" edges={["top"]}>
@@ -200,21 +232,40 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
+        {/* Loading State */}
+        {isLoading && !isInitialized && (
+          <View className="items-center py-10">
+            <ActivityIndicator size="large" color="#9D00FF" />
+          </View>
+        )}
+
         {/* Masonry Grid */}
-        <View className="flex-row px-5 gap-3">
-          {/* Left Column */}
-          <View className="flex-1">
-            {leftColumn.map((item) => (
-              <CaptureCard key={item.id} item={item} />
-            ))}
+        {feedItems.length > 0 && (
+          <View className="flex-row px-5 gap-3">
+            {/* Left Column */}
+            <View className="flex-1">
+              {leftColumn.map((item) => (
+                <CaptureCard key={item.id} item={item} />
+              ))}
+            </View>
+            {/* Right Column */}
+            <View className="flex-1">
+              {rightColumn.map((item) => (
+                <CaptureCard key={item.id} item={item} isWide />
+              ))}
+            </View>
           </View>
-          {/* Right Column */}
-          <View className="flex-1">
-            {rightColumn.map((item) => (
-              <CaptureCard key={item.id} item={item} isWide />
-            ))}
+        )}
+
+        {/* Empty State */}
+        {isInitialized && feedItems.length === 0 && (
+          <View className="items-center py-16 px-8">
+            <FontAwesome name="inbox" size={48} color="#2A2A3E" />
+            <Text className="text-nexus-text-secondary text-base mt-4 text-center">
+              No captures yet. Share a link or take a screenshot to get started!
+            </Text>
           </View>
-        </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

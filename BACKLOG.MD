@@ -1,17 +1,17 @@
 # NexusMind - MVP Development Backlog (Definitive Strict Local)
 
 ## Phase 1: Project Setup & UI Shell
-- [ ] Initialize Expo app with TypeScript and Expo Router.
-- [ ] Configure NativeWind (Tailwind) and set up the strict dark mode / neon purple design system.
-- [ ] Build **Screen 1 (Home)**: Search bar, 'Paste Link' & 'Record Audio' quick actions, and a placeholder Masonry layout feed (use mock data).
-- [ ] Build **Screen 2 (Chat/Search)**: Chat interface UI with rich media cards rendering (use mock data).
-- [ ] Build **Screen 3 (Audio Detail)**: Audio player UI, AI Summary section, and Action Items checklist UI (use mock data).
+- [X] Initialize Expo app with TypeScript and Expo Router.
+- [X] Configure NativeWind (Tailwind) and set up the strict dark mode / neon purple design system.
+- [X] Build **Screen 1 (Home)**: Search bar, 'Paste Link' & 'Record Audio' quick actions, and a placeholder Masonry layout feed (use mock data).
+- [X] Build **Screen 2 (Chat/Search)**: Chat interface UI with rich media cards rendering (use mock data).
+- [X] Build **Screen 3 (Audio Detail)**: Audio player UI, AI Summary section, and Action Items checklist UI (use mock data).
 
 ## Phase 2: Local Database & Architecture
-- [ ] Set up Expo SQLite.
-- [ ] Design the schema: `Items` (id, type, raw_content, summary, tags, created_at) and an `Embeddings` table.
-- [ ] Implement local Vector Search capabilities (SQLite VSS or `pg-lite` with `pgvector`).
-- [ ] Set up Zustand store to manage UI state and optimistic updates.
+- [X] Set up Expo SQLite.
+- [X] Design the schema: `Items` (id, type, raw_content, summary, tags, created_at) and an `Embeddings` table.
+- [X] Implement local Vector Search capabilities (SQLite VSS or `pg-lite` with `pgvector`).
+- [X] Set up Zustand store to manage UI state and optimistic updates.
 
 ## Phase 3: The Capture Engine (Zero-Friction Input)
 - [ ] Implement React Native Share Extension (iOS/Android) to receive text and URLs natively.

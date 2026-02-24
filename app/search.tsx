@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,12 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { MOCK_CHAT, type ChatMessage } from "@/data/mockData";
+import { useChatStore } from "@/stores/useChatStore";
+import type { ChatMessage } from "@/lib/types";
 
 // User message bubble
 function UserBubble({ message }: { message: ChatMessage }) {
@@ -110,9 +112,9 @@ function AssistantBubble({ message }: { message: ChatMessage }) {
           ) : null}
 
           {/* Timestamp */}
-          {message.timestamp ? (
+          {message.createdAt ? (
             <Text className="text-nexus-text-muted text-[10px] mt-1.5 ml-1">
-              {message.timestamp}
+              {formatChatTimestamp(message.createdAt)}
             </Text>
           ) : null}
         </View>
@@ -121,8 +123,73 @@ function AssistantBubble({ message }: { message: ChatMessage }) {
   );
 }
 
+/** Format a chat message timestamp */
+function formatChatTimestamp(date: Date): string {
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  const time = date.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  if (isToday) return `Today ${time}`;
+  return `${date.toLocaleDateString()} ${time}`;
+}
+
+/** Thinking indicator bubble */
+function ThinkingBubble() {
+  return (
+    <View className="items-start mb-4">
+      <View className="flex-row items-start gap-2">
+        <View className="w-8 h-8 rounded-full bg-nexus-purple items-center justify-center mt-1">
+          <FontAwesome name="connectdevelop" size={14} color="#FFFFFF" />
+        </View>
+        <View className="bg-nexus-surface rounded-2xl rounded-bl-sm px-4 py-3">
+          <View className="flex-row items-center gap-1.5">
+            <ActivityIndicator size="small" color="#9D00FF" />
+            <Text className="text-nexus-text-secondary text-sm ml-1">
+              Searching your memory...
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export default function SearchScreen() {
   const [query, setQuery] = useState("");
+  const scrollRef = useRef<ScrollView>(null);
+  const { messages, isLoading, isThinking, loadMessages, sendMessage } =
+    useChatStore();
+
+  // Load chat messages from database on mount
+  useEffect(() => {
+    loadMessages();
+  }, [loadMessages]);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (scrollRef.current) {
+      setTimeout(() => {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [messages, isThinking]);
+
+  const handleSend = async () => {
+    const text = query.trim();
+    if (!text || isThinking) return;
+
+    setQuery("");
+    await sendMessage(text);
+  };
+
+  // Get the first message timestamp for the header
+  const firstTimestamp =
+    messages.length > 0
+      ? formatChatTimestamp(messages[0].createdAt).toUpperCase()
+      : "";
 
   return (
     <SafeAreaView className="flex-1 bg-nexus-bg" edges={["bottom"]}>
@@ -131,23 +198,48 @@ export default function SearchScreen() {
         className="flex-1"
         keyboardVerticalOffset={90}
       >
-        {/* Timestamp header */}
         <ScrollView
+          ref={scrollRef}
           className="flex-1 px-4"
           contentContainerStyle={{ paddingTop: 16, paddingBottom: 16 }}
           showsVerticalScrollIndicator={false}
         >
-          <Text className="text-nexus-text-muted text-[11px] text-center mb-6 font-medium uppercase tracking-wider">
-            TODAY 10:23 AM
-          </Text>
+          {/* Timestamp header */}
+          {firstTimestamp ? (
+            <Text className="text-nexus-text-muted text-[11px] text-center mb-6 font-medium uppercase tracking-wider">
+              {firstTimestamp}
+            </Text>
+          ) : null}
 
-          {MOCK_CHAT.map((msg) =>
+          {/* Loading state */}
+          {isLoading && (
+            <View className="items-center py-10">
+              <ActivityIndicator size="large" color="#9D00FF" />
+            </View>
+          )}
+
+          {/* Empty state */}
+          {!isLoading && messages.length === 0 && (
+            <View className="items-center py-16 px-8">
+              <FontAwesome name="search" size={40} color="#2A2A3E" />
+              <Text className="text-nexus-text-secondary text-base mt-4 text-center">
+                Ask your second brain anything. I'll search your captures to
+                find the answer.
+              </Text>
+            </View>
+          )}
+
+          {/* Messages */}
+          {messages.map((msg) =>
             msg.role === "user" ? (
               <UserBubble key={msg.id} message={msg} />
             ) : (
               <AssistantBubble key={msg.id} message={msg} />
             )
           )}
+
+          {/* Thinking indicator */}
+          {isThinking && <ThinkingBubble />}
         </ScrollView>
 
         {/* Input Bar */}
@@ -164,9 +256,16 @@ export default function SearchScreen() {
               placeholderTextColor="#6E6E73"
               value={query}
               onChangeText={setQuery}
+              onSubmitEditing={handleSend}
+              returnKeyType="send"
+              editable={!isThinking}
             />
-            <Pressable className="ml-3">
-              <FontAwesome name="microphone" size={18} color="#9D00FF" />
+            <Pressable className="ml-3" onPress={handleSend}>
+              {query.trim() ? (
+                <FontAwesome name="arrow-circle-up" size={22} color="#9D00FF" />
+              ) : (
+                <FontAwesome name="microphone" size={18} color="#9D00FF" />
+              )}
             </Pressable>
           </View>
         </View>

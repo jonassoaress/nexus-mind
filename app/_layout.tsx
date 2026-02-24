@@ -4,6 +4,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
+import { useDatabase } from "@/hooks/useDatabase";
 
 import "../global.css";
 
@@ -21,17 +22,24 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
 
+  // Initialize database & run migrations before rendering
+  const { isReady: dbReady, error: dbError } = useDatabase();
+
   useEffect(() => {
     if (error) throw error;
   }, [error]);
 
   useEffect(() => {
-    if (loaded) {
+    if (dbError) console.error("[NexusMind] DB Error:", dbError);
+  }, [dbError]);
+
+  useEffect(() => {
+    if (loaded && dbReady) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [loaded, dbReady]);
 
-  if (!loaded) {
+  if (!loaded || !dbReady) {
     return null;
   }
 

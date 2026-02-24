@@ -1,18 +1,17 @@
-import React, { useState } from "react";
-import { View, Text, ScrollView, Pressable } from "react-native";
+import React, { useEffect } from "react";
+import { View, Text, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, Stack } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { MOCK_AUDIO_DETAIL } from "@/data/mockData";
+import { useItemsStore } from "@/stores/useItemsStore";
 
 // Waveform visualization (static bars for Phase 1)
 function WaveformVisualizer() {
-  // Generate fake waveform bars
   const bars = [
     3, 5, 8, 4, 6, 9, 7, 5, 8, 10, 6, 4, 7, 9, 5, 8, 6, 10, 7, 4, 8, 5, 9,
     6, 7, 4, 8, 10, 5, 7, 9, 6, 4, 8, 5, 7, 10, 6, 9, 4,
   ];
-  const activeIndex = 12; // fake playhead position
+  const activeIndex = 12;
 
   return (
     <View className="flex-row items-center justify-center h-16 gap-[2px] my-4">
@@ -30,14 +29,19 @@ function WaveformVisualizer() {
 }
 
 // Audio playback controls
-function PlaybackControls() {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const data = MOCK_AUDIO_DETAIL;
+function PlaybackControls({
+  currentTime,
+  remainingTime,
+}: {
+  currentTime: string;
+  remainingTime: string;
+}) {
+  const [isPlaying, setIsPlaying] = React.useState(false);
 
   return (
     <View className="flex-row items-center justify-between px-4 mt-2">
       <Text className="text-nexus-text-secondary text-xs font-mono">
-        {data.currentTime}
+        {currentTime}
       </Text>
       <View className="flex-row items-center gap-6">
         <Pressable>
@@ -59,30 +63,88 @@ function PlaybackControls() {
         </Pressable>
       </View>
       <Text className="text-nexus-text-secondary text-xs font-mono">
-        {data.remainingTime}
+        {remainingTime}
       </Text>
     </View>
   );
 }
 
 export default function AudioDetailScreen() {
-  const { id } = useLocalSearchParams();
-  const data = MOCK_AUDIO_DETAIL;
-  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const {
+    items,
+    currentAudioDetail,
+    isLoadingAudioDetail,
+    loadAudioDetail,
+    toggleActionItem,
+    loadItems,
+    isInitialized,
+  } = useItemsStore();
 
-  const toggleItem = (itemId: string) => {
-    setCheckedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
-  };
+  // Load items if not already loaded
+  useEffect(() => {
+    if (!isInitialized) {
+      loadItems();
+    }
+  }, [isInitialized, loadItems]);
 
-  const completedCount = Object.values(checkedItems).filter(Boolean).length;
+  // Load audio detail when the screen mounts
+  useEffect(() => {
+    if (id) {
+      loadAudioDetail(id);
+    }
+  }, [id, loadAudioDetail]);
+
+  // Find the parent item for metadata
+  const parentItem = items.find((i) => i.id === id);
+  const data = currentAudioDetail;
+
+  const completedCount =
+    data?.actionItems.filter((ai) => ai.completed).length ?? 0;
+
+  // Loading state
+  if (isLoadingAudioDetail || !data) {
+    return (
+      <>
+        <Stack.Screen
+          options={{
+            headerTitle: "",
+            headerTitleAlign: "center",
+            headerTitleStyle: {
+              color: "#FFFFFF",
+              fontSize: 16,
+              fontWeight: "600",
+            },
+          }}
+        />
+        <SafeAreaView className="flex-1 bg-nexus-bg items-center justify-center">
+          <ActivityIndicator size="large" color="#9D00FF" />
+          <Text className="text-nexus-text-secondary mt-3">
+            Loading audio detail...
+          </Text>
+        </SafeAreaView>
+      </>
+    );
+  }
+
+  const title = parentItem?.title ?? "Audio";
+  const tags = parentItem?.tags ?? [];
+  const duration = parentItem?.duration ?? "0:00";
+  const dateLabel = parentItem
+    ? `Voice Note - ${parentItem.createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+    : "Voice Note";
 
   return (
     <>
       <Stack.Screen
         options={{
-          headerTitle: data.date,
+          headerTitle: dateLabel,
           headerTitleAlign: "center",
-          headerTitleStyle: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },
+          headerTitleStyle: {
+            color: "#FFFFFF",
+            fontSize: 16,
+            fontWeight: "600",
+          },
           headerRight: () => (
             <Pressable className="mr-2">
               <FontAwesome name="ellipsis-v" size={18} color="#8E8E93" />
@@ -102,7 +164,7 @@ export default function AudioDetailScreen() {
             <View className="flex-row items-start justify-between">
               <View className="flex-1 mr-3">
                 <Text className="text-white text-xl font-bold mb-1">
-                  {data.title}
+                  {title}
                 </Text>
                 <Text className="text-nexus-text-secondary text-xs">
                   Auto-tagged: {data.autoTags.join(", ")}
@@ -111,7 +173,9 @@ export default function AudioDetailScreen() {
               {/* AI Processed Badge */}
               <View className="bg-nexus-purple/20 border border-nexus-purple/40 rounded-lg px-2.5 py-1.5">
                 <Text className="text-nexus-purple text-[10px] font-bold">
-                  {data.status}
+                  {parentItem?.processingStatus === "completed"
+                    ? "AI PROCESSED"
+                    : parentItem?.processingStatus?.toUpperCase() ?? "PENDING"}
                 </Text>
               </View>
             </View>
@@ -120,7 +184,10 @@ export default function AudioDetailScreen() {
             <WaveformVisualizer />
 
             {/* Playback Controls */}
-            <PlaybackControls />
+            <PlaybackControls
+              currentTime={data.currentTime}
+              remainingTime={data.remainingTime}
+            />
           </View>
 
           {/* AI Summary Section */}
@@ -134,12 +201,7 @@ export default function AudioDetailScreen() {
 
             <View className="bg-nexus-surface rounded-2xl p-4">
               <Text className="text-nexus-text-secondary text-sm leading-6">
-                Brainstorming a new{" "}
-                <Text className="text-white font-bold">B2B SaaS idea</Text> for
-                automated customer onboarding. The discussion focuses primarily
-                on strategies for{" "}
-                <Text className="text-white font-bold">reducing churn</Text>{" "}
-                during the critical first 14 days of user engagement.
+                {data.summary}
               </Text>
 
               {/* Tags */}
@@ -176,7 +238,9 @@ export default function AudioDetailScreen() {
               {data.actionItems.map((item, index) => (
                 <Pressable
                   key={item.id}
-                  onPress={() => toggleItem(item.id)}
+                  onPress={() => {
+                    if (id) toggleActionItem(id, item.id);
+                  }}
                   className={`flex-row items-center p-4 ${
                     index < data.actionItems.length - 1
                       ? "border-b border-nexus-border"
@@ -185,18 +249,18 @@ export default function AudioDetailScreen() {
                 >
                   <View
                     className={`w-6 h-6 rounded-full border-2 items-center justify-center mr-3 ${
-                      checkedItems[item.id]
+                      item.completed
                         ? "bg-nexus-purple border-nexus-purple"
                         : "border-nexus-text-muted"
                     }`}
                   >
-                    {checkedItems[item.id] && (
+                    {item.completed && (
                       <FontAwesome name="check" size={10} color="#FFFFFF" />
                     )}
                   </View>
                   <Text
                     className={`text-sm flex-1 ${
-                      checkedItems[item.id]
+                      item.completed
                         ? "text-nexus-text-muted line-through"
                         : "text-nexus-text-secondary"
                     }`}
