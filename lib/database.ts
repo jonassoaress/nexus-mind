@@ -67,6 +67,7 @@ function rowToItem(row: ItemRow): Item {
     author: row.author,
     duration: row.duration,
     imagePlaceholder: row.image_placeholder,
+    fileUri: row.file_uri ?? null,
     processingStatus: row.processing_status,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
@@ -82,6 +83,7 @@ function rowToAudioDetail(row: AudioDetailRow): AudioDetail {
     summaryTags: JSON.parse(row.summary_tags) as string[],
     actionItems: JSON.parse(row.action_items) as ActionItemData[],
     autoTags: JSON.parse(row.auto_tags) as string[],
+    audioFileUri: row.audio_file_uri ?? null,
     currentTime: row.current_time,
     remainingTime: row.remaining_time,
     createdAt: new Date(row.created_at),
@@ -121,8 +123,8 @@ export async function createItem(payload: CreateItemPayload): Promise<Item> {
   const now = new Date().toISOString();
 
   await db.runAsync(
-    `INSERT INTO items (id, type, title, raw_content, summary, tags, source_url, source_label, author, duration, image_placeholder, processing_status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO items (id, type, title, raw_content, summary, tags, source_url, source_label, author, duration, image_placeholder, file_uri, processing_status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     payload.type,
     payload.title,
@@ -134,6 +136,7 @@ export async function createItem(payload: CreateItemPayload): Promise<Item> {
     payload.author ?? null,
     payload.duration ?? null,
     payload.imagePlaceholder ?? null,
+    payload.fileUri ?? null,
     payload.processingStatus ?? "pending",
     now,
     now
@@ -151,8 +154,8 @@ export async function insertItemWithId(
   const now = new Date().toISOString();
 
   await db.runAsync(
-    `INSERT OR REPLACE INTO items (id, type, title, raw_content, summary, tags, source_url, source_label, author, duration, image_placeholder, processing_status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO items (id, type, title, raw_content, summary, tags, source_url, source_label, author, duration, image_placeholder, file_uri, processing_status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     payload.type,
     payload.title,
@@ -164,6 +167,7 @@ export async function insertItemWithId(
     payload.author ?? null,
     payload.duration ?? null,
     payload.imagePlaceholder ?? null,
+    payload.fileUri ?? null,
     payload.processingStatus ?? "completed",
     now,
     now
@@ -254,6 +258,10 @@ export async function updateItem(
     sets.push("image_placeholder = ?");
     params.push(payload.imagePlaceholder);
   }
+  if (payload.fileUri !== undefined) {
+    sets.push("file_uri = ?");
+    params.push(payload.fileUri);
+  }
   if (payload.processingStatus !== undefined) {
     sets.push("processing_status = ?");
     params.push(payload.processingStatus);
@@ -301,8 +309,8 @@ export async function createAudioDetail(
   const now = new Date().toISOString();
 
   await db.runAsync(
-    `INSERT INTO audio_details (id, item_id, transcript, summary, summary_tags, action_items, auto_tags, current_time, remaining_time, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO audio_details (id, item_id, transcript, summary, summary_tags, action_items, auto_tags, audio_file_uri, current_time, remaining_time, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     payload.itemId,
     payload.transcript ?? null,
@@ -310,6 +318,7 @@ export async function createAudioDetail(
     JSON.stringify(payload.summaryTags),
     JSON.stringify(payload.actionItems),
     JSON.stringify(payload.autoTags),
+    payload.audioFileUri ?? null,
     payload.currentTime,
     payload.remainingTime,
     now

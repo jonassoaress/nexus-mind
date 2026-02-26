@@ -105,6 +105,7 @@ export async function seedDatabaseIfEmpty(): Promise<void> {
     summaryTags: ["#SaaS", "#Retention", "#ProductStrategy"],
     actionItems,
     autoTags: ["Business", "Strategy"],
+    audioFileUri: null,
     currentTime: "0:34",
     remainingTime: "-1:49",
   });

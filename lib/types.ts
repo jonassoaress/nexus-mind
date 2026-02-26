@@ -26,6 +26,7 @@ export interface ItemRow {
   author: string | null;
   duration: string | null;
   image_placeholder: string | null;
+  file_uri: string | null;
   processing_status: ProcessingStatus;
   created_at: string; // ISO 8601
   updated_at: string; // ISO 8601
@@ -44,6 +45,7 @@ export interface Item {
   author: string | null;
   duration: string | null;
   imagePlaceholder: string | null;
+  fileUri: string | null;
   processingStatus: ProcessingStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -89,6 +91,7 @@ export interface AudioDetailRow {
   summary_tags: string; // JSON-serialized string[]
   action_items: string; // JSON-serialized ActionItemData[]
   auto_tags: string; // JSON-serialized string[]
+  audio_file_uri: string | null;
   current_time: string;
   remaining_time: string;
   created_at: string;
@@ -103,6 +106,7 @@ export interface AudioDetail {
   summaryTags: string[];
   actionItems: ActionItemData[];
   autoTags: string[];
+  audioFileUri: string | null;
   currentTime: string;
   remainingTime: string;
   createdAt: Date;
@@ -169,6 +173,7 @@ export type CreateItemPayload = Pick<
       | "author"
       | "duration"
       | "imagePlaceholder"
+      | "fileUri"
       | "processingStatus"
     >
   >;

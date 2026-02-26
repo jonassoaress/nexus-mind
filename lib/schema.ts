@@ -7,7 +7,7 @@
 
 import type { SQLiteDatabase } from "expo-sqlite";
 
-const CURRENT_VERSION = 1;
+const CURRENT_VERSION = 2;
 
 /**
  * Run all pending migrations to bring the DB up to CURRENT_VERSION.
@@ -27,8 +27,9 @@ export async function runMigrations(db: SQLiteDatabase): Promise<void> {
     await migrateToV1(db);
   }
 
-  // Future migrations go here:
-  // if (currentVersion < 2) { await migrateToV2(db); }
+  if (currentVersion < 2) {
+    await migrateToV2(db);
+  }
 
   await db.execAsync(`PRAGMA user_version = ${CURRENT_VERSION};`);
 }
@@ -112,5 +113,17 @@ async function migrateToV1(db: SQLiteDatabase): Promise<void> {
     );
 
     CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, created_at ASC);
+  `);
+}
+
+// ─── Migration V2: Add file_uri column for captured content ─────────────────
+
+async function migrateToV2(db: SQLiteDatabase): Promise<void> {
+  await db.execAsync(`
+    -- Add file_uri column to items for audio recordings and screenshot images
+    ALTER TABLE items ADD COLUMN file_uri TEXT;
+
+    -- Add audio_file_uri column to audio_details for the recorded audio file path
+    ALTER TABLE audio_details ADD COLUMN audio_file_uri TEXT;
   `);
 }

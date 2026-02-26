@@ -14,9 +14,9 @@
 - [X] Set up Zustand store to manage UI state and optimistic updates.
 
 ## Phase 3: The Capture Engine (Zero-Friction Input)
-- [ ] Implement React Native Share Extension (iOS/Android) to receive text and URLs natively.
-- [ ] Implement `expo-av` for audio recording on the Home screen.
-- [ ] Implement background task to monitor the device's Screenshot directory (handle permissions gracefully).
+- [X] Implement React Native Share Extension (iOS/Android) to receive text and URLs natively.
+- [X] Implement `expo-av` for audio recording on the Home screen.
+- [X] Implement background task to monitor the device's Screenshot directory (handle permissions gracefully).
 
 ## Phase 4: Local AI Integration (The Core Differentiator)
 - [ ] Integrate local OS-level OCR (Expo ML Kit for Android / Apple Vision for iOS).

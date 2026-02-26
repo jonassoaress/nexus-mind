@@ -86,6 +86,7 @@ export const useItemsStore = create<ItemsState>((set, get) => ({
       author: payload.author ?? null,
       duration: payload.duration ?? null,
       imagePlaceholder: payload.imagePlaceholder ?? null,
+      fileUri: payload.fileUri ?? null,
       processingStatus: payload.processingStatus ?? "pending",
       createdAt: new Date(),
       updatedAt: new Date(),

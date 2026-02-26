@@ -4,7 +4,12 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
+import { ShareIntentProvider } from "expo-share-intent";
 import { useDatabase } from "@/hooks/useDatabase";
+import {
+  defineScreenshotTask,
+  initializeScreenshotBaseline,
+} from "@/lib/capture/screenshotWatcher";
 
 import "../global.css";
 
@@ -13,6 +18,9 @@ export { ErrorBoundary } from "expo-router";
 export const unstable_settings = {
   initialRouteName: "(tabs)",
 };
+
+// Define background task at module level (required by expo-task-manager)
+defineScreenshotTask();
 
 SplashScreen.preventAutoHideAsync();
 
@@ -36,6 +44,8 @@ export default function RootLayout() {
   useEffect(() => {
     if (loaded && dbReady) {
       SplashScreen.hideAsync();
+      // Initialize screenshot baseline on first launch
+      initializeScreenshotBaseline();
     }
   }, [loaded, dbReady]);
 
@@ -44,7 +54,12 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <ShareIntentProvider
+      options={{
+        debug: __DEV__,
+        resetOnBackground: true,
+      }}
+    >
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -75,7 +90,15 @@ export default function RootLayout() {
             headerShadowVisible: false,
           }}
         />
+        <Stack.Screen
+          name="record"
+          options={{
+            headerShown: false,
+            presentation: "modal",
+            animation: "slide_from_bottom",
+          }}
+        />
       </Stack>
-    </>
+    </ShareIntentProvider>
   );
 }

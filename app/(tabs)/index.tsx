@@ -1,15 +1,26 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
   ScrollView,
   Pressable,
   ActivityIndicator,
+  Alert,
+  AppState,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { useShareIntentContext } from "expo-share-intent";
 import { useItemsStore } from "@/stores/useItemsStore";
+import { captureLinkFromClipboard } from "@/lib/capture/linkCapture";
+import { processShareIntent } from "@/lib/capture/shareIntent";
+import {
+  checkForNewScreenshots,
+  requestMediaLibraryPermission,
+  getMediaLibraryPermissionStatus,
+  registerScreenshotWatcher,
+} from "@/lib/capture/screenshotWatcher";
 import type { Item } from "@/lib/types";
 
 // Tag badge color mapping
@@ -79,6 +90,25 @@ function formatTimestamp(date: Date): string {
   return date.toLocaleDateString();
 }
 
+// Processing Status Badge
+function StatusBadge({ status }: { status: string }) {
+  if (status === "completed") return null;
+
+  const config: Record<string, { bg: string; text: string; label: string }> = {
+    pending: { bg: "bg-amber-500/20", text: "text-amber-400", label: "PENDING" },
+    processing: { bg: "bg-blue-500/20", text: "text-blue-400", label: "PROCESSING" },
+    failed: { bg: "bg-red-500/20", text: "text-red-400", label: "FAILED" },
+  };
+
+  const c = config[status] ?? config.pending;
+
+  return (
+    <View className={`px-2 py-0.5 rounded-full ${c.bg} mb-1.5`}>
+      <Text className={`text-[9px] font-bold ${c.text}`}>{c.label}</Text>
+    </View>
+  );
+}
+
 // Masonry Card Component
 function CaptureCard({ item, isWide }: { item: Item; isWide?: boolean }) {
   const router = useRouter();
@@ -99,6 +129,9 @@ function CaptureCard({ item, isWide }: { item: Item; isWide?: boolean }) {
         <PlaceholderImage type={item.imagePlaceholder} large={isWide} />
       )}
       <View className="p-3">
+        {/* Processing Status */}
+        <StatusBadge status={item.processingStatus} />
+
         {/* Tag */}
         {tagStyle && tag && (
           <View className="flex-row mb-2">
@@ -155,6 +188,11 @@ function CaptureCard({ item, isWide }: { item: Item; isWide?: boolean }) {
 export default function HomeScreen() {
   const router = useRouter();
   const { items, isLoading, isInitialized, loadItems } = useItemsStore();
+  const [isPastingLink, setIsPastingLink] = useState(false);
+
+  // Share intent handling
+  const { hasShareIntent, shareIntent, resetShareIntent } =
+    useShareIntentContext();
 
   // Load items from database on mount
   useEffect(() => {
@@ -162,6 +200,101 @@ export default function HomeScreen() {
       loadItems();
     }
   }, [isInitialized, loadItems]);
+
+  // ─── Share Intent Processing ────────────────────────────────────
+  useEffect(() => {
+    if (hasShareIntent && shareIntent) {
+      (async () => {
+        try {
+          const result = await processShareIntent(shareIntent);
+          if (result) {
+            await loadItems();
+            Alert.alert(
+              "Captured!",
+              `Saved as ${result.type}: "${result.item.title}"`,
+              [{ text: "OK" }]
+            );
+          }
+        } catch (error) {
+          console.error("[NexusMind] Share intent error:", error);
+        } finally {
+          resetShareIntent();
+        }
+      })();
+    }
+  }, [hasShareIntent, shareIntent, loadItems, resetShareIntent]);
+
+  // ─── Screenshot Monitoring (on app resume) ─────────────────────
+  useEffect(() => {
+    // Initialize screenshot watcher permissions + registration
+    (async () => {
+      const hasPermission = await getMediaLibraryPermissionStatus();
+      if (hasPermission) {
+        try {
+          await registerScreenshotWatcher();
+        } catch {
+          // Background fetch may not be available in dev
+        }
+      }
+    })();
+
+    // Check for new screenshots when app returns to foreground
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active" && isInitialized) {
+        checkForNewScreenshots().then((newItems) => {
+          if (newItems.length > 0) {
+            loadItems();
+          }
+        });
+      }
+    });
+
+    return () => subscription.remove();
+  }, [isInitialized, loadItems]);
+
+  // ─── Paste Link Handler ────────────────────────────────────────
+  const handlePasteLink = useCallback(async () => {
+    setIsPastingLink(true);
+    try {
+      const result = await captureLinkFromClipboard();
+      if (result) {
+        await loadItems();
+        Alert.alert("Link Captured!", `"${result.title}" has been saved.`, [
+          { text: "OK" },
+        ]);
+      } else {
+        Alert.alert(
+          "No URL Found",
+          "Copy a URL to your clipboard first, then tap Paste Link.",
+          [{ text: "OK" }]
+        );
+      }
+    } catch (error) {
+      Alert.alert(
+        "Capture Error",
+        error instanceof Error ? error.message : "Failed to capture link"
+      );
+    } finally {
+      setIsPastingLink(false);
+    }
+  }, [loadItems]);
+
+  // ─── Enable Screenshot Monitoring ──────────────────────────────
+  const handleEnableScreenshots = useCallback(async () => {
+    const granted = await requestMediaLibraryPermission();
+    if (granted) {
+      try {
+        await registerScreenshotWatcher();
+      } catch {
+        // May not be available in dev
+      }
+      Alert.alert(
+        "Screenshots Enabled",
+        "NexusMind will now automatically detect and capture new screenshots.",
+        [{ text: "OK" }]
+      );
+    }
+  }, []);
 
   // Filter out audio items for the feed (they show in a different section)
   const feedItems = items.filter((i) => i.type !== "audio");
@@ -185,7 +318,7 @@ export default function HomeScreen() {
             </View>
             <Text className="text-white text-xl font-bold">NexusMind</Text>
           </View>
-          <Pressable>
+          <Pressable onPress={handleEnableScreenshots}>
             <FontAwesome name="bell-o" size={20} color="#8E8E93" />
           </Pressable>
         </View>
@@ -205,15 +338,23 @@ export default function HomeScreen() {
 
         {/* Quick Actions */}
         <View className="flex-row px-5 mb-6 gap-3">
-          <Pressable className="flex-1 flex-row items-center justify-center bg-nexus-surface border border-nexus-border rounded-full py-3">
-            <FontAwesome name="link" size={14} color="#9D00FF" />
+          <Pressable
+            className={`flex-1 flex-row items-center justify-center bg-nexus-surface border border-nexus-border rounded-full py-3 ${isPastingLink ? "opacity-50" : ""}`}
+            onPress={handlePasteLink}
+            disabled={isPastingLink}
+          >
+            {isPastingLink ? (
+              <ActivityIndicator size="small" color="#9D00FF" />
+            ) : (
+              <FontAwesome name="link" size={14} color="#9D00FF" />
+            )}
             <Text className="text-white font-medium text-sm ml-2">
-              Paste Link
+              {isPastingLink ? "Capturing..." : "Paste Link"}
             </Text>
           </Pressable>
           <Pressable
             className="flex-1 flex-row items-center justify-center bg-nexus-surface border border-nexus-border rounded-full py-3"
-            onPress={() => router.push("/audio/audio-1")}
+            onPress={() => router.push("/record")}
           >
             <FontAwesome name="microphone" size={14} color="#9D00FF" />
             <Text className="text-white font-medium text-sm ml-2">
